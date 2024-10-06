@@ -8,7 +8,7 @@ from check_position import calculate_distance
 from read import read_users, read_workplaces, Coordinates
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(token="6853655201:AAH8uFGgzkuF6TA3-Tlim6IW8U995ukgllE")
+bot = Bot(token="")
 dp = Dispatcher()
 router = Router()
 
