@@ -1,0 +1,12 @@
+{
+  "users": [
+    {
+    "username" : "Feelsgod1",
+    "workplace_id" : "1"
+    },
+    {
+    "username" : "Олег",
+    "workplace_id" : "2"
+    }
+  ]
+}
