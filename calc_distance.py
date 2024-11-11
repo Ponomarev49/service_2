@@ -1,9 +1,13 @@
 import math
 
-from read import Coordinates
+
+class Coordinates:
+    def __init__(self, coordinates_list):
+        self.latitude = coordinates_list[0]
+        self.longitude = coordinates_list[1]
+
 
 RADIUS_OF_EARTH = 6371
-ERROR = 0.01 # погрешность координат в километрах
 
 
 def calculate_distance(coords1: Coordinates, coords2: Coordinates):
@@ -17,7 +21,4 @@ def calculate_distance(coords1: Coordinates, coords2: Coordinates):
     angular_distance = 2 * math.atan2(math.sqrt(haversine_formula), math.sqrt(1 - haversine_formula))
     distance = RADIUS_OF_EARTH * angular_distance
 
-    if distance <= ERROR:
-        return True
-    else:
-        return False
+    return distance
