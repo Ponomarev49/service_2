@@ -6,12 +6,17 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
+import os
+from dotenv import load_dotenv
 
 from calc_distance import calculate_distance, Coordinates
 
 COORDINATES_ERROR = 0.05
 
-bot = Bot(token="6853655201:AAH8uFGgzkuF6TA3-Tlim6IW8U995ukgllE")
+load_dotenv()
+
+token = os.getenv("token")
+bot = Bot(token = token)
 dp = Dispatcher(storage=MemoryStorage())
 
 
