@@ -3,8 +3,8 @@ import math
 
 class Coordinates:
     def __init__(self, coordinates_list):
-        self.latitude = coordinates_list[0]
-        self.longitude = coordinates_list[1]
+        self.latitude = float(coordinates_list[0])
+        self.longitude = float(coordinates_list[1])
 
 
 RADIUS_OF_EARTH = 6371
