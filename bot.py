@@ -1,5 +1,4 @@
 import asyncio
-import sqlite3
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext

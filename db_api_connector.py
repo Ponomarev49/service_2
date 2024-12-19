@@ -1,5 +1,3 @@
-import os
-
 from supabase import create_client, Client
 
 from calc_distance import calculate_distance, Coordinates
@@ -58,7 +56,7 @@ class EmployeesDBConnector(DBAPIConnector):
 
     id: int = "id"
     username: str = "username"
-    store_id: str = "store_id"
+    store_id: int = "store_id"
     phone_number: str = "phone_number"
 
     def check_user_by_username(self, username: str) -> dict:
