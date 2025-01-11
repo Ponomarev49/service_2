@@ -11,19 +11,19 @@ class DBAPIConnector:
 
 
 class StoresDBConnector(DBAPIConnector):
-    table_name: str = "ParfumLeaderStores"
+    table_name: str = "Stores"
 
     id: int = "id"
     name: str = "name"
+    city: str = "city"
+    address: str = "address"
     lat: str = "lat"
     lon: str = "lon"
-    city: str = "city"
-    lin1: str = "line1"
-    line2: str = "line2"
     code: str = "code"
+    chat: str = "chat"
     timezone: str = "timezone"
     workTimeStart: str = "workTimeStart"
-    chat: str = "chat"
+    workTimeEnd: str = "workTimeEnd"
 
     def get_nearest_stores_for_user(self, user_lat: float, user_lon: float) -> list:
         # Получаем все магазины
@@ -32,11 +32,11 @@ class StoresDBConnector(DBAPIConnector):
 
         store_distances = []
         for store in stores:
-            store_id, name, lat, lon, city, line1, line2, code = store['id'], store['name'], store['lat'], store['lon'], \
-                store['city'], store['line1'], store['line2'], store['code']
+            store_id, name, lat, lon, city, address = store['id'], store['name'], store['lat'], store['lon'], \
+                store['city'], store['address']
             # Расчет расстояния между пользователем и магазином
             distance = calculate_distance(Coordinates([user_lat, user_lon]), Coordinates([lat, lon]))
-            store_distances.append((distance, store_id, name, lat, lon, city, line1, line2, code))
+            store_distances.append((distance, store_id, name, lat, lon, city, address))
 
         store_distances.sort()  # Сортируем по расстоянию
         return store_distances[:3]  # Возвращаем топ 3 ближайших магазина
@@ -76,13 +76,13 @@ class EmployeesDBConnector(DBAPIConnector):
     def update_user_store_id(self, username: str, store_id: int):
         # Обновление store_id для пользователя
         self.supabase.table(self.table_name).update({self.store_id: store_id}).eq(self.username, username).execute()
-        print(f"Пользователю {username} установлен магазин с ID {store_id}.")
+        print(f"Пользователь {username} установил магазин с ID {store_id}.")
 
     def update_user_phone(self, username: str, phone_number: str):
         # Обновление номера телефона для пользователя
         self.supabase.table(self.table_name).update({self.phone_number: phone_number}).eq(self.username,
                                                                                           username).execute()
-        print(f"Пользователю {username} изменен номер телефона на {phone_number}.")
+        print(f"Пользователь {username} измененил номер телефона на {phone_number}.")
 
     def get_employee_workplace_coordinates(self, username: str) -> dict:
         # Получаем store_id сотрудника
