@@ -1,4 +1,5 @@
 import pandas as pd
+import sys
 
 
 def processing_stores(filepath):
@@ -24,22 +25,32 @@ def processing_stores(filepath):
     # Разделение на два столбца: начало и конец работы
     df[['workTimeStart', 'workTimeEnd']] = df['line2'].str.split(' до ', expand=True)
 
+    # приведение форматов
+    df['workTimeStart'] = pd.to_datetime(df['workTimeStart'], format='%H:%M').dt.strftime('%H:%M:%S')
+    df['workTimeEnd'] = pd.to_datetime(df['workTimeEnd'], format='%H:%M').dt.strftime('%H:%M:%S')
+    df['timezone'] = pd.to_timedelta(df['timezone'] + ':00').dt.components.apply(
+        lambda x: f"{x.hours:02}:{x.minutes:02}:{x.seconds:02}", axis=1
+    )
+
     # удаляем столбец
     df = df.drop(columns=["line2"])
 
     # поменяем местами столбцы
-    df = df[["id", "name", "city", "address", "lat", "lon", "code", "chat", "timezone", "workTimeStart", "workTimeEnd"]]
+    df = df[["id", "name", "city", "address", "lat", "lon", "code", "chat", "workTimeStart", "workTimeEnd", "timezone"]]
 
     # Сохранение DataFrame в JSON файл
     df.to_json("stores.json", orient="records", force_ascii=False, indent=4)
+
+    # Сохранение DataFrame в CSV файл
+    df.to_csv("output.csv", index=False, encoding="utf-8")
 
     print('Данные обработаны и сохранены')
 
     return df
 
+
 # Для выполнения из терминала
 if __name__ == "__main__":
-    import sys
     if len(sys.argv) != 2:
         print("Использование: python processing.py https://www.parfum-lider.ru/upload/bot/map.json")
     else:

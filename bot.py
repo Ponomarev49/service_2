@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
@@ -6,6 +7,8 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
 import os
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
 from calc_distance import calculate_distance, Coordinates
@@ -20,12 +23,64 @@ DB_CONNECTION_PARAMS: tuple[str, str] = os.getenv("SUPABASE_URL"), os.getenv("SU
 
 bot = Bot(token=token)
 dp = Dispatcher(storage=MemoryStorage())
+scheduler = BackgroundScheduler()
 
 
 class LocationStates(StatesGroup):
     set_workplace = State()  # Для установки рабочего места
     check_on_work = State()  # Для проверки, находится ли пользователь на рабочем месте
     change_phone = State()  # Для изменения номера телефона
+
+
+# Функция для отправки сообщений
+async def send_message(username, message):
+    # Получаем user_id по username
+    user = await bot.get_chat(username)
+    user_id = user.id
+
+    # Отправляем сообщение
+    await bot.send_message(user_id, message)
+
+
+# Функция для преобразования строки часового пояса в объект timedelta
+def parse_timezone(tz_str):
+    try:
+        sign = 1 if tz_str[0] == '+' else -1
+        hours, minutes, seconds = map(int, tz_str[1:].split(":"))
+        return timezone(timedelta(hours=sign * hours, minutes=sign * minutes, seconds=sign * seconds))
+    except Exception:
+        raise ValueError(f"Некорректный формат часового пояса: {tz_str}")
+
+
+# Планирование задач для каждого пользователя
+def schedule_messages():
+    employees = employees_db_connector.get_all_users()
+    for employee in employees:
+        employee_username, employee_store_id = employee.values()
+        employee_city, employee_work_time_start, employee_timezone = stores_db_connector.get_timezone_and_start_for_user(
+            employee["store_id"]).values()
+
+        # Преобразуем строку времени в объект time
+        user_time = datetime.strptime(employee_work_time_start, "%H:%M:%S").time()
+
+        # Преобразуем строку часового пояса в объект timezone
+        user_timezone = parse_timezone(employee_timezone)
+
+        # Создаём datetime объекта для времени пользователя
+        local_datetime = datetime.combine(datetime.today(), user_time, tzinfo=user_timezone)
+
+        # Преобразуем локальное время в UTC
+        utc_time = local_datetime.astimezone(timezone.utc)
+
+        # Планируем задачу
+        scheduler.add_job(
+            send_message,
+            CronTrigger(hour=utc_time.hour, minute=utc_time.minute, timezone=timezone.utc),
+            args=[employee_username,
+                  f"Сообщение отправлено в {employee_work_time_start} по вашему времени\nПривет из {employee_city}"],
+            id=f"message_{employee_username}",
+            replace_existing=True
+        )
 
 
 def create_main_keyboard():
@@ -178,6 +233,9 @@ async def process_store_selection(callback_query: types.CallbackQuery):
 async def main():
     stores_db_connector.connect(*DB_CONNECTION_PARAMS)
     employees_db_connector.connect(*DB_CONNECTION_PARAMS)
+    # Запуск планировщика
+    scheduler.start()
+    schedule_messages()
     await dp.start_polling(bot)
 
 
