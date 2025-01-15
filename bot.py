@@ -20,7 +20,7 @@ COORDINATES_ERROR = 0.05
 
 load_dotenv()
 
-token = os.getenv("token1")
+token = os.getenv("token")
 DB_CONNECTION_PARAMS: tuple[str, str] = os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY")
 
 bot = Bot(token=token)
