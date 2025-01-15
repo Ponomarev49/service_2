@@ -41,7 +41,6 @@ class StoresDBConnector(DBAPIConnector):
         store_distances.sort()  # Сортируем по расстоянию
         return store_distances[:3]  # Возвращаем топ 3 ближайших магазина
 
-
     def get_store_coordinates_by_id(self, id: int) -> dict:
         # Получаем координаты магазина по его ID
         response = self.supabase.table(self.table_name).select("lat, lon").eq(self.id, id).execute()
@@ -50,10 +49,10 @@ class StoresDBConnector(DBAPIConnector):
             return result[0]
         return {}
 
-
     def get_timezone_and_start_for_user(self, id: int) -> dict:
         # Получаем часовой пояс магазина
-        response = self.supabase.table(self.table_name).select("city", "workTimeStart", "timezone").eq(self.id, id).execute()
+        response = self.supabase.table(self.table_name).select("city", "workTimeStart", "timezone").eq(self.id,
+                                                                                                       id).execute()
         result = response.data
         if result:
             return result[0]
@@ -65,8 +64,15 @@ class EmployeesDBConnector(DBAPIConnector):
 
     id: int = "id"
     username: str = "username"
+    user_id: int = "user_id"
     store_id: int = "store_id"
     phone_number: str = "phone_number"
+
+    def add_user(self, username: str, user_id: int):
+        # Добавление нового пользователя
+        self.supabase.table(self.table_name).insert(
+            {self.username: username, self.user_id: user_id}).execute()
+        print(f"Добавлен пользователь {username} с ID {user_id}.")
 
     def check_user_by_username(self, username: str) -> dict:
         # Подключение к базе данных и выполнение запроса
@@ -76,22 +82,22 @@ class EmployeesDBConnector(DBAPIConnector):
             return response_data[0]
         return {}
 
-    def add_user_to_db(self, username: str, phone_number: str):
-        # Вставка нового пользователя в таблицу
-        self.supabase.table(self.table_name).insert(
-            {self.username: username, self.phone_number: phone_number}).execute()
-        print(f"Пользователь {username} добавлен с номером {phone_number}.")
+    def add_phone_number_to_user(self, username: str, phone_number: str):
+        # Добавление телефона пользователя
+        self.supabase.table(self.table_name).update({self.phone_number: phone_number}).eq(self.username,
+                                                                                          username).execute()
+        print(f"Пользователь {username} установил номер телефона {phone_number}.")
 
     def update_user_store_id(self, username: str, store_id: int):
         # Обновление store_id для пользователя
         self.supabase.table(self.table_name).update({self.store_id: store_id}).eq(self.username, username).execute()
         print(f"Пользователь {username} установил магазин с ID {store_id}.")
 
-    def update_user_phone(self, username: str, phone_number: str):
-        # Обновление номера телефона для пользователя
-        self.supabase.table(self.table_name).update({self.phone_number: phone_number}).eq(self.username,
-                                                                                          username).execute()
-        print(f"Пользователь {username} измененил номер телефона на {phone_number}.")
+    # def update_user_phone(self, username: str, phone_number: str):
+    #     # Обновление номера телефона для пользователя
+    #     self.supabase.table(self.table_name).update({self.phone_number: phone_number}).eq(self.username,
+    #                                                                                       username).execute()
+    #     print(f"Пользователь {username} измененил номер телефона на {phone_number}.")
 
     def get_employee_workplace_coordinates(self, username: str) -> dict:
         # Получаем store_id сотрудника
@@ -103,10 +109,9 @@ class EmployeesDBConnector(DBAPIConnector):
             return store_id
         return {}
 
-
     def get_all_users(self) -> list:
         # получаем username и store_id всех сотрудников
-        response = self.supabase.table(self.table_name).select("username", "store_id").execute()
+        response = self.supabase.table(self.table_name).select("username","user_id", "store_id").execute()
         response_data = response.data
         if response_data:
             return response_data

@@ -8,6 +8,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
 import os
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
@@ -23,7 +25,7 @@ DB_CONNECTION_PARAMS: tuple[str, str] = os.getenv("SUPABASE_URL"), os.getenv("SU
 
 bot = Bot(token=token)
 dp = Dispatcher(storage=MemoryStorage())
-scheduler = BackgroundScheduler()
+scheduler = AsyncIOScheduler()
 
 
 class LocationStates(StatesGroup):
@@ -32,12 +34,17 @@ class LocationStates(StatesGroup):
     change_phone = State()  # Для изменения номера телефона
 
 
-# Функция для отправки сообщений
-async def send_message(username, message):
-    # Получаем user_id по username
-    user = await bot.get_chat(username)
-    user_id = user.id
+async def get_user_id(event: types.Message | types.CallbackQuery) -> int:
+    if isinstance(event, types.Message):
+        return event.from_user.id
+    elif isinstance(event, types.CallbackQuery):
+        return event.from_user.id
+    else:
+        raise ValueError("Переданный объект не является Message или CallbackQuery")
 
+
+# Функция для отправки сообщений
+async def send_message(user_id, message):
     # Отправляем сообщение
     await bot.send_message(user_id, message)
 
@@ -56,29 +63,29 @@ def parse_timezone(tz_str):
 def schedule_messages():
     employees = employees_db_connector.get_all_users()
     for employee in employees:
-        employee_username, employee_store_id = employee.values()
+        employee_username, employee_id, employee_store_id = employee.values()
         employee_city, employee_work_time_start, employee_timezone = stores_db_connector.get_timezone_and_start_for_user(
             employee["store_id"]).values()
 
         # Преобразуем строку времени в объект time
-        user_time = datetime.strptime(employee_work_time_start, "%H:%M:%S").time()
+        employee_work_time_start = datetime.strptime(employee_work_time_start, "%H:%M:%S").time()
+        employee_timezone = datetime.strptime(employee_timezone, "%H:%M:%S")
 
-        # Преобразуем строку часового пояса в объект timezone
-        user_timezone = parse_timezone(employee_timezone)
+        # Вычисляем разницу
+        delta = timedelta(hours=employee_work_time_start.hour, minutes=employee_work_time_start.minute,
+                          seconds=employee_work_time_start.second) - \
+                timedelta(hours=employee_timezone.hour, minutes=employee_timezone.minute,
+                          seconds=employee_timezone.second)
 
-        # Создаём datetime объекта для времени пользователя
-        local_datetime = datetime.combine(datetime.today(), user_time, tzinfo=user_timezone)
-
-        # Преобразуем локальное время в UTC
-        utc_time = local_datetime.astimezone(timezone.utc)
+        total_seconds = int(delta.total_seconds())
 
         # Планируем задачу
         scheduler.add_job(
             send_message,
-            CronTrigger(hour=utc_time.hour, minute=utc_time.minute, timezone=timezone.utc),
-            args=[employee_username,
+            CronTrigger(hour=total_seconds // 3600, minute=(total_seconds % 3600) // 60, timezone=timezone.utc),
+            args=[employee_id,
                   f"Сообщение отправлено в {employee_work_time_start} по вашему времени\nПривет из {employee_city}"],
-            id=f"message_{employee_username}",
+            id=f"message_{employee_id}",
             replace_existing=True
         )
 
@@ -122,6 +129,8 @@ async def start_command(message: types.Message):
     if employees_db_connector.check_user_by_username(username):
         await message.answer("Добро пожаловать обратно!", reply_markup=create_main_keyboard())
     else:
+        user_id = await get_user_id(message)
+        employees_db_connector.add_user(username, user_id)
         await message.answer(
             "Мы не нашли вас в базе данных. Пожалуйста, отправьте ваш номер телефона:",
             reply_markup=create_phone_keyboard()
@@ -170,11 +179,11 @@ async def contact_handler(message: types.Message, state: FSMContext):
 
     # Если пользователь отправляет геолокацию для установки рабочего места
     if current_state == LocationStates.change_phone:
-        employees_db_connector.update_user_phone(username, phone_number)
+        employees_db_connector.add_phone_number_to_user(username, phone_number)
         await message.answer(f"Номер успешно изменен: {phone_number}", reply_markup=create_main_keyboard())
     else:
         if not employees_db_connector.check_user_by_username(username):
-            employees_db_connector.add_user_to_db(username, phone_number)
+            employees_db_connector.add_phone_number_to_user(username, phone_number)
             await message.answer("Пожалуйста, отправьте вашу геолокацию:", reply_markup=create_location_keyboard())
             await state.set_state(LocationStates.set_workplace)
 
@@ -236,7 +245,6 @@ async def main():
     # Запуск планировщика
     scheduler.start()
     schedule_messages()
-    await dp.start_polling(bot)
 
 
 if __name__ == '__main__':
