@@ -7,7 +7,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
 import os
-from apscheduler.schedulers.background import BackgroundScheduler
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from apscheduler.triggers.cron import CronTrigger
@@ -245,6 +245,7 @@ async def main():
     # Запуск планировщика
     scheduler.start()
     schedule_messages()
+    await dp.start_polling(bot)
 
 
 if __name__ == '__main__':
