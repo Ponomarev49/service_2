@@ -20,7 +20,7 @@ COORDINATES_ERROR = 0.05
 
 load_dotenv()
 
-token = os.getenv("token")
+token = os.getenv("token1")
 DB_CONNECTION_PARAMS: tuple[str, str] = os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY")
 
 bot = Bot(token=token)
@@ -182,10 +182,9 @@ async def contact_handler(message: types.Message, state: FSMContext):
         employees_db_connector.add_phone_number_to_user(username, phone_number)
         await message.answer(f"Номер успешно изменен: {phone_number}", reply_markup=create_main_keyboard())
     else:
-        if not employees_db_connector.check_user_by_username(username):
-            employees_db_connector.add_phone_number_to_user(username, phone_number)
-            await message.answer("Пожалуйста, отправьте вашу геолокацию:", reply_markup=create_location_keyboard())
-            await state.set_state(LocationStates.set_workplace)
+        employees_db_connector.add_phone_number_to_user(username, phone_number)
+        await message.answer("Пожалуйста, отправьте вашу геолокацию:", reply_markup=create_location_keyboard())
+        await state.set_state(LocationStates.set_workplace)
 
 
 @dp.message(F.location)

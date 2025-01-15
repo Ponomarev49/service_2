@@ -51,8 +51,8 @@ class StoresDBConnector(DBAPIConnector):
 
     def get_timezone_and_start_for_user(self, id: int) -> dict:
         # Получаем часовой пояс магазина
-        response = self.supabase.table(self.table_name).select("city", "workTimeStart", "timezone").eq(self.id,
-                                                                                                       id).execute()
+        response = self.supabase.table(self.table_name).select("city", "workTimeEnd", "timezone").eq(self.id,
+                                                                                                     id).execute()
         result = response.data
         if result:
             return result[0]
@@ -111,7 +111,7 @@ class EmployeesDBConnector(DBAPIConnector):
 
     def get_all_users(self) -> list:
         # получаем username и store_id всех сотрудников
-        response = self.supabase.table(self.table_name).select("username","user_id", "store_id").execute()
+        response = self.supabase.table(self.table_name).select("username", "user_id", "store_id").execute()
         response_data = response.data
         if response_data:
             return response_data
