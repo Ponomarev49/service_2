@@ -5,7 +5,7 @@ from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup, CallbackQuery
 import os
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -49,16 +49,6 @@ async def send_message(user_id, message):
     await bot.send_message(user_id, message)
 
 
-# Функция для преобразования строки часового пояса в объект timedelta
-def parse_timezone(tz_str):
-    try:
-        sign = 1 if tz_str[0] == '+' else -1
-        hours, minutes, seconds = map(int, tz_str[1:].split(":"))
-        return timezone(timedelta(hours=sign * hours, minutes=sign * minutes, seconds=sign * seconds))
-    except Exception:
-        raise ValueError(f"Некорректный формат часового пояса: {tz_str}")
-
-
 # Планирование задач для каждого пользователя
 def schedule_messages():
     employees = employees_db_connector.get_all_users()
@@ -69,7 +59,7 @@ def schedule_messages():
 
         # Преобразуем строку времени в объект time
         employee_work_time_start = datetime.strptime(employee_work_time_start, "%H:%M:%S").time()
-        employee_timezone = datetime.strptime(employee_timezone, "%H:%M:%S")
+        employee_timezone = datetime.strptime(employee_timezone, "%H:%M:%S").time()
 
         # Вычисляем разницу
         delta = timedelta(hours=employee_work_time_start.hour, minutes=employee_work_time_start.minute,
@@ -78,6 +68,8 @@ def schedule_messages():
                           seconds=employee_timezone.second)
 
         total_seconds = int(delta.total_seconds())
+        if delta.days == -1:
+            total_seconds += 24 * 60 * 60
 
         # Планируем задачу
         scheduler.add_job(
@@ -94,9 +86,10 @@ def create_main_keyboard():
     change_phone = (KeyboardButton(text="Сменить телефон"))
     change_work = (KeyboardButton(text="Сменить место работы"))
     check_work = (KeyboardButton(text="Проверить на работе"))
+    set_schedule = (KeyboardButton(text="Изменить расписание"))
 
     keyboard = ReplyKeyboardMarkup(
-        keyboard=[[change_phone, change_work, check_work]],
+        keyboard=[[change_phone, change_work, check_work, set_schedule]],
         resize_keyboard=True,
         one_time_keyboard=True
     )
@@ -170,6 +163,57 @@ async def handle_change_phone(message: types.Message, state: FSMContext):
     await state.set_state(LocationStates.change_phone)
 
 
+def get_next_10_days_formatted():
+    today = datetime.today()
+    next_10_days = [(today + timedelta(days=i)).strftime('%d.%m.%Y') for i in range(1, 11)]
+    return next_10_days
+
+
+async def create_dates_buttons(username, state: FSMContext):
+    id = employees_db_connector.check_user_by_username(username)["user_id"]
+    nearest_days = employees_db_connector.get_employee_next_dates(username)
+
+    buttons = []
+    response_text = "Следующие 10 дней:\nНажмите на дату, чтобы изменить\n\n"
+
+    for key, value in nearest_days.items():
+        buttons.append(
+            [InlineKeyboardButton(text=f"{key} - {value}", callback_data=f"{username}:{key}:{value}")])
+
+    # Кнопка для отправки выбранных
+    buttons.append([InlineKeyboardButton(text="Сохранить", callback_data="save_schedule")])
+
+    inline_kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    sent_message = await bot.send_message(id, response_text, reply_markup=inline_kb)
+    # await message.answer(response_text, reply_markup=inline_kb)
+
+    # Сохраняем ID сообщения, которое нужно будет удалить позже
+    await state.update_data(sent_message_id=sent_message.message_id)
+
+    return inline_kb
+
+
+# Генерация клавиатуры
+@dp.message(F.text == "Изменить расписание")
+async def handle_set_schedule(message: types.Message, state: FSMContext):
+    username = message.from_user.username
+    await create_dates_buttons(username, state)
+
+
+@dp.callback_query(lambda c: c.data == "save_schedule")
+async def handle_save_schedule(callback_query: types.CallbackQuery, state: FSMContext):
+    # Получаем ID сообщения, которое нужно удалить
+    user_data = await state.get_data()
+    sent_message_id = user_data.get('sent_message_id')
+
+    if sent_message_id:
+        # Удаляем предыдущее сообщение
+        await callback_query.message.delete()
+
+    # Ответ на callback_query
+    await callback_query.message.answer("Ваши данные сохранены", reply_markup=create_main_keyboard())
+
+
 @dp.message(F.contact)
 async def contact_handler(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
@@ -236,6 +280,30 @@ async def process_store_selection(callback_query: types.CallbackQuery):
     employees_db_connector.update_user_store_id(username=callback_query.from_user.username, store_id=store_id)
     await callback_query.message.answer(f"Вы успешно авторизованы. Ваше рабочее место {store_id}",
                                         reply_markup=create_main_keyboard())
+
+
+# Обработчик для callback-запросов с датами
+@dp.callback_query(lambda c: c.data != 'save_schedule')
+async def handle_date_click(callback_query: types.CallbackQuery, state: FSMContext):
+    # Извлекаем дату и значение из callback_data
+    username, selected_date, value = callback_query.data.split(":")
+
+    nearest_days = employees_db_connector.get_employee_next_dates(username)
+    if nearest_days[selected_date] == "Работаю":
+        nearest_days[selected_date] = "Выходной"
+    else:
+        nearest_days[selected_date] = "Работаю"
+
+    employees_db_connector.update_employee_next_dates(username, nearest_days)
+
+    user_data = await state.get_data()
+    sent_message_id = user_data.get('sent_message_id')
+
+    if sent_message_id:
+        # Удаляем предыдущее сообщение
+        await callback_query.message.delete()
+
+    await create_dates_buttons(username, state)
 
 
 async def main():

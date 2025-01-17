@@ -67,6 +67,7 @@ class EmployeesDBConnector(DBAPIConnector):
     user_id: int = "user_id"
     store_id: int = "store_id"
     phone_number: str = "phone_number"
+    nearest_dates: dict = "nearest_dates"
 
     def add_user(self, username: str, user_id: int):
         # Добавление нового пользователя
@@ -93,18 +94,12 @@ class EmployeesDBConnector(DBAPIConnector):
         self.supabase.table(self.table_name).update({self.store_id: store_id}).eq(self.username, username).execute()
         print(f"Пользователь {username} установил магазин с ID {store_id}.")
 
-    # def update_user_phone(self, username: str, phone_number: str):
-    #     # Обновление номера телефона для пользователя
-    #     self.supabase.table(self.table_name).update({self.phone_number: phone_number}).eq(self.username,
-    #                                                                                       username).execute()
-    #     print(f"Пользователь {username} измененил номер телефона на {phone_number}.")
-
     def get_employee_workplace_coordinates(self, username: str) -> dict:
         # Получаем store_id сотрудника
         response = self.supabase.table(self.table_name).select("store_id").eq(self.username, username).execute()
-        result = response.data
-        if result:
-            store_id = result[0]['store_id']
+        response_data = response.data
+        if response_data:
+            store_id = response_data[0]['store_id']
             # Получаем координаты магазина по store_id
             return store_id
         return {}
@@ -116,6 +111,14 @@ class EmployeesDBConnector(DBAPIConnector):
         if response_data:
             return response_data
         return []
+
+    def get_employee_next_dates(self, username: str) -> list:
+        response = self.supabase.table(self.table_name).select("nearest_dates").eq(self.username, username).execute()
+        response_data = response.data
+        return response_data[0]["nearest_dates"]
+
+    def update_employee_next_dates(self, username: str, dates: dict):
+        self.supabase.table(self.table_name).update({self.nearest_dates: dates}).eq(self.username, username).execute()
 
 
 stores_db_connector = StoresDBConnector()
