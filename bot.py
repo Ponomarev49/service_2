@@ -49,6 +49,12 @@ async def send_message(user_id, message):
     await bot.send_message(user_id, message)
 
 
+def get_next_10_days_formatted():
+    today = datetime.today()
+    next_10_days = [(today + timedelta(days=i)).strftime('%d.%m.%Y') for i in range(1, 11)]
+    return next_10_days
+
+
 # Планирование задач для каждого пользователя
 def schedule_messages():
     employees = employees_db_connector.get_all_users()
@@ -124,6 +130,11 @@ async def start_command(message: types.Message):
     else:
         user_id = await get_user_id(message)
         employees_db_connector.add_user(username, user_id)
+
+        keys = get_next_10_days_formatted()
+        json = {key: "Работаю" for key in keys}
+        employees_db_connector.update_employee_next_dates(username, json)
+
         await message.answer(
             "Мы не нашли вас в базе данных. Пожалуйста, отправьте ваш номер телефона:",
             reply_markup=create_phone_keyboard()
@@ -163,12 +174,6 @@ async def handle_change_phone(message: types.Message, state: FSMContext):
     await state.set_state(LocationStates.change_phone)
 
 
-def get_next_10_days_formatted():
-    today = datetime.today()
-    next_10_days = [(today + timedelta(days=i)).strftime('%d.%m.%Y') for i in range(1, 11)]
-    return next_10_days
-
-
 async def create_dates_buttons(username, state: FSMContext):
     id = employees_db_connector.check_user_by_username(username)["user_id"]
     nearest_days = employees_db_connector.get_employee_next_dates(username)
@@ -185,7 +190,6 @@ async def create_dates_buttons(username, state: FSMContext):
 
     inline_kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     sent_message = await bot.send_message(id, response_text, reply_markup=inline_kb)
-    # await message.answer(response_text, reply_markup=inline_kb)
 
     # Сохраняем ID сообщения, которое нужно будет удалить позже
     await state.update_data(sent_message_id=sent_message.message_id)
