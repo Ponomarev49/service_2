@@ -1,6 +1,6 @@
 from supabase import create_client, Client
 
-from calc_distance import calculate_distance, Coordinates
+from location_handler import calculate_distance, Coordinates
 
 
 class DBAPIConnector:
@@ -62,9 +62,8 @@ class StoresDBConnector(DBAPIConnector):
 class EmployeesDBConnector(DBAPIConnector):
     table_name: str = "Employees"
 
-    id: int = "id"
-    username: str = "username"
     user_id: int = "user_id"
+    username: str = "username"
     store_id: int = "store_id"
     phone_number: str = "phone_number"
     nearest_dates: dict = "nearest_dates"

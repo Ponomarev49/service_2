@@ -1,20 +1,21 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup, CallbackQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import os
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
-from calc_distance import calculate_distance, Coordinates
+from keyboard_utils import create_main_keyboard, create_location_keyboard, create_phone_keyboard, create_dates_buttons
+from location_handler import calculate_distance, Coordinates
 from db_api_connector import stores_db_connector, employees_db_connector
+from utils import get_next_10_days_formatted
+
+import scheduler_handler
 
 COORDINATES_ERROR = 0.05
 
@@ -43,102 +44,7 @@ async def get_user_id(event: types.Message | types.CallbackQuery) -> int:
         raise ValueError("Переданный объект не является Message или CallbackQuery")
 
 
-# Функция для отправки сообщений
-async def send_message(user_id, message):
-    # Отправляем сообщение
-    await bot.send_message(user_id, message)
 
-
-def get_next_10_days_formatted():
-    today = datetime.today()
-    next_10_days = [(today + timedelta(days=i)).strftime('%d.%m.%Y') for i in range(1, 11)]
-    return next_10_days
-
-
-# Планирование задач для каждого пользователя
-def schedule_messages():
-    employees = employees_db_connector.get_all_users()
-    for employee in employees:
-        employee_username, employee_id, employee_store_id = employee.values()
-        employee_city, employee_work_time_start, employee_timezone = stores_db_connector.get_timezone_and_start_for_user(
-            employee["store_id"]).values()
-
-        # Преобразуем строку времени в объект time
-        employee_work_time_start = datetime.strptime(employee_work_time_start, "%H:%M:%S").time()
-        employee_timezone = datetime.strptime(employee_timezone, "%H:%M:%S").time()
-
-        # Вычисляем разницу
-        delta = timedelta(hours=employee_work_time_start.hour, minutes=employee_work_time_start.minute,
-                          seconds=employee_work_time_start.second) - \
-                timedelta(hours=employee_timezone.hour, minutes=employee_timezone.minute,
-                          seconds=employee_timezone.second)
-
-        total_seconds = int(delta.total_seconds())
-        if delta.days == -1:
-            total_seconds += 24 * 60 * 60
-
-        # Планируем задачу
-        scheduler.add_job(
-            send_message,
-            CronTrigger(hour=total_seconds // 3600, minute=(total_seconds % 3600) // 60, timezone=timezone.utc),
-            args=[employee_id,
-                  f"Сообщение отправлено в {employee_work_time_start} по вашему времени\nПривет из {employee_city}"],
-            id=f"message_{employee_id}",
-            replace_existing=True
-        )
-
-
-def create_main_keyboard():
-    change_phone = (KeyboardButton(text="Сменить телефон"))
-    change_work = (KeyboardButton(text="Сменить место работы"))
-    check_work = (KeyboardButton(text="Проверить на работе"))
-    set_schedule = (KeyboardButton(text="Изменить расписание"))
-
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[[change_phone, change_work, check_work, set_schedule]],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-    return keyboard
-
-
-def create_phone_keyboard():
-    phone_button = KeyboardButton(text="Отправить номер телефона", request_contact=True)
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[[phone_button]],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-    return keyboard
-
-
-def create_location_keyboard():
-    location_button = KeyboardButton(text="Отправить геолокацию", request_location=True)
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[[location_button]],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-    return keyboard
-
-
-@dp.message(Command("start"))
-async def start_command(message: types.Message):
-    username = message.from_user.username
-    if employees_db_connector.check_user_by_username(username):
-        await message.answer("Добро пожаловать обратно!", reply_markup=create_main_keyboard())
-    else:
-        user_id = await get_user_id(message)
-        employees_db_connector.add_user(username, user_id)
-
-        keys = get_next_10_days_formatted()
-        json = {key: "Работаю" for key in keys}
-        employees_db_connector.update_employee_next_dates(username, json)
-
-        await message.answer(
-            "Мы не нашли вас в базе данных. Пожалуйста, отправьте ваш номер телефона:",
-            reply_markup=create_phone_keyboard()
-        )
 
 
 # Сменить место работы
@@ -174,34 +80,11 @@ async def handle_change_phone(message: types.Message, state: FSMContext):
     await state.set_state(LocationStates.change_phone)
 
 
-async def create_dates_buttons(username, state: FSMContext):
-    id = employees_db_connector.check_user_by_username(username)["user_id"]
-    nearest_days = employees_db_connector.get_employee_next_dates(username)
-
-    buttons = []
-    response_text = "Следующие 10 дней:\nНажмите на дату, чтобы изменить\n\n"
-
-    for key, value in nearest_days.items():
-        buttons.append(
-            [InlineKeyboardButton(text=f"{key} - {value}", callback_data=f"{username}:{key}:{value}")])
-
-    # Кнопка для отправки выбранных
-    buttons.append([InlineKeyboardButton(text="Сохранить", callback_data="save_schedule")])
-
-    inline_kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    sent_message = await bot.send_message(id, response_text, reply_markup=inline_kb)
-
-    # Сохраняем ID сообщения, которое нужно будет удалить позже
-    await state.update_data(sent_message_id=sent_message.message_id)
-
-    return inline_kb
-
-
 # Генерация клавиатуры
 @dp.message(F.text == "Изменить расписание")
 async def handle_set_schedule(message: types.Message, state: FSMContext):
     username = message.from_user.username
-    await create_dates_buttons(username, state)
+    await create_dates_buttons(username, employees_db_connector, bot, state)
 
 
 @dp.callback_query(lambda c: c.data == "save_schedule")
@@ -225,10 +108,11 @@ async def contact_handler(message: types.Message, state: FSMContext):
     phone_number = message.contact.phone_number
     username = message.from_user.username
 
-    # Если пользователь отправляет геолокацию для установки рабочего места
+    # Если пользователь хочет изменить номер телефона
     if current_state == LocationStates.change_phone:
         employees_db_connector.add_phone_number_to_user(username, phone_number)
         await message.answer(f"Номер успешно изменен: {phone_number}", reply_markup=create_main_keyboard())
+    # если пользователь регистрируется
     else:
         employees_db_connector.add_phone_number_to_user(username, phone_number)
         await message.answer("Пожалуйста, отправьте вашу геолокацию:", reply_markup=create_location_keyboard())
@@ -307,7 +191,25 @@ async def handle_date_click(callback_query: types.CallbackQuery, state: FSMConte
         # Удаляем предыдущее сообщение
         await callback_query.message.delete()
 
-    await create_dates_buttons(username, state)
+    await create_dates_buttons(username, employees_db_connector, bot, state)
+
+@dp.message(Command("start"))
+async def start_command(message: types.Message):
+    username = message.from_user.username
+    if employees_db_connector.check_user_by_username(username):
+        await message.answer("Добро пожаловать обратно!", reply_markup=create_main_keyboard())
+    else:
+        user_id = await get_user_id(message)
+        employees_db_connector.add_user(username, user_id)
+
+        keys = get_next_10_days_formatted()
+        json = {key: "Работаю" for key in keys}
+        employees_db_connector.update_employee_next_dates(username, json)
+
+        await message.answer(
+            "Мы не нашли вас в базе данных. Пожалуйста, отправьте ваш номер телефона:",
+            reply_markup=create_phone_keyboard()
+        )
 
 
 async def main():
@@ -315,7 +217,7 @@ async def main():
     employees_db_connector.connect(*DB_CONNECTION_PARAMS)
     # Запуск планировщика
     scheduler.start()
-    schedule_messages()
+    scheduler_handler.schedule_messages(scheduler, employees_db_connector, stores_db_connector, bot)
     await dp.start_polling(bot)
 
 
