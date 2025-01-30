@@ -12,8 +12,11 @@ from dotenv import load_dotenv
 
 from keyboard_utils import create_main_keyboard, create_location_keyboard, create_phone_keyboard, create_dates_buttons
 from location_handler import calculate_distance, Coordinates
-from db_api_connector import stores_db_connector, employees_db_connector
+from database.stores_db_connector import stores_db_connector
+from database.employees_db_connector import employees_db_connector
+from database.employee_attendance_db_connector import employees_attendance_db_connector
 from utils import get_next_10_days_formatted
+from datetime import datetime, timedelta, timezone
 
 import scheduler_handler
 
@@ -44,11 +47,8 @@ async def get_user_id(event: types.Message | types.CallbackQuery) -> int:
         raise ValueError("Переданный объект не является Message или CallbackQuery")
 
 
-
-
-
 # Сменить место работы
-@dp.message(F.text == "Сменить место работы")
+@dp.message(F.text == "🏢 Сменить место работы")
 async def handle_change_work(message: types.Message, state: FSMContext):
     await message.answer("Отправьте вашу геолокацию для выбора нового места работы:",
                          reply_markup=create_location_keyboard())
@@ -56,23 +56,30 @@ async def handle_change_work(message: types.Message, state: FSMContext):
 
 
 # Проверить на работе
-@dp.message(F.text == "Проверить на работе")
+@dp.message(F.text == "✅ Отметиться на работе")
 async def handle_check_work(message: types.Message, state: FSMContext):
     username = message.from_user.username
-    store_id = employees_db_connector.get_employee_workplace_coordinates(username)
-    coordinates = stores_db_connector.get_store_coordinates_by_id(store_id)
-    store_lat, store_lon = coordinates["lat"], coordinates["lon"]
 
-    await state.update_data(store_lat=store_lat, store_lon=store_lon)
-    await message.answer(
-        "Отправьте вашу текущую геолокацию, чтобы проверить, находитесь ли вы на рабочем месте:",
-        reply_markup=create_location_keyboard()
-    )
-    await state.set_state(LocationStates.check_on_work)
+    status =next(iter(employees_db_connector.get_employee_next_dates(username).items()))[1]
+
+    if status=="Работаю":
+        store_id = employees_db_connector.get_employee_workplace(username)
+        coordinates = stores_db_connector.get_store_coordinates_by_id(store_id)
+        store_lat, store_lon = coordinates["lat"], coordinates["lon"]
+
+        await state.update_data(store_lat=store_lat, store_lon=store_lon)
+        await message.answer(
+            "Отправьте вашу текущую геолокацию, чтобы проверить, находитесь ли вы на рабочем месте:",
+            reply_markup=create_location_keyboard()
+        )
+        await state.set_state(LocationStates.check_on_work)
+    else:
+        await message.answer("У вас сегодня выходной)", reply_markup=create_main_keyboard())
+
 
 
 # Сменить номер телефона
-@dp.message(F.text == "Сменить телефон")
+@dp.message(F.text == "📱 Сменить телефон")
 async def handle_change_phone(message: types.Message, state: FSMContext):
     await message.answer(
         "Пожалуйста, отправьте ваш номер телефона:", reply_markup=create_phone_keyboard()
@@ -81,7 +88,7 @@ async def handle_change_phone(message: types.Message, state: FSMContext):
 
 
 # Генерация клавиатуры
-@dp.message(F.text == "Изменить расписание")
+@dp.message(F.text == "📅 Изменить расписание")
 async def handle_set_schedule(message: types.Message, state: FSMContext):
     username = message.from_user.username
     await create_dates_buttons(username, employees_db_connector, bot, state)
@@ -149,16 +156,59 @@ async def location_handler(message: types.Message, state: FSMContext):
 
         user_lat = message.location.latitude
         user_lon = message.location.longitude
+        username = message.from_user.username
+
+        store_id = employees_db_connector.get_employee_workplace(username)
+        _, time_start, time_end, user_timezone = stores_db_connector.get_time_for_store(store_id).values()
+
+        work_start_time = datetime.strptime(time_start, "%H:%M:%S").time()  # Время начала работы
+        work_end_time = datetime.strptime(time_end, "%H:%M:%S").time()  # Время конца работы
+        timezone_offset = datetime.strptime(user_timezone, "%H:%M:%S").time()  # Часовой пояс 
+
+        # Получаем текущее время в UTC
+        now_utc = datetime.now(timezone.utc)
+
+        # Конвертируем time в timedelta
+        offset_delta = timedelta(hours=timezone_offset.hour, minutes=timezone_offset.minute, seconds=timezone_offset.second)
+
+        # Вычисляем локальное время пользователя
+        user_now_time = (now_utc + offset_delta).time()
+
+        # Вычисляем границу 20 минут
+        work_start_plus_20 = (datetime.combine(datetime.today(), work_start_time) + timedelta(minutes=4)).time()
+        work_end_minus_20 = (datetime.combine(datetime.today(), work_end_time) - timedelta(minutes=4)).time()
 
         distance = calculate_distance(
             Coordinates([user_lat, user_lon]),
             Coordinates([store_lat, store_lon])
         )
 
+        user_id = await get_user_id(message)
+
+        was_present = False
         if distance <= COORDINATES_ERROR:
-            await message.answer("Вы находитесь на рабочем месте.", reply_markup=create_main_keyboard())
+            was_present = True
+
+        # Проверяем, уложился ли сотрудник в 20 минут
+        if work_start_time <= user_now_time <= work_start_plus_20 or work_end_minus_20 <= user_now_time <= work_end_time:
+            if work_start_time <= user_now_time <= work_start_plus_20:
+                if scheduler.get_job(f"job_start_{user_id}"):
+                    scheduler.remove_job(f"job_start_{user_id}")
+                scheduler.remove_job(f"job_start2_{user_id}")
+            if work_end_minus_20 <= user_now_time <= work_end_time:
+                if scheduler.get_job(f"job_end_{user_id}"):
+                    scheduler.remove_job(f"job_end_{user_id}")
+                scheduler.remove_job(f"job_end2_{user_id}")
+
+            employees_attendance_db_connector.add_attendance(user_id, datetime.now().strftime("%Y.%m.%d"), str(user_now_time), was_present)
+            await message.answer("Ваша отметка сохранена ✅", reply_markup=create_main_keyboard())
+        
         else:
-            await message.answer("Вы не находитесь на рабочем месте.", reply_markup=create_main_keyboard())
+            if was_present:
+                await message.answer("Вы на рабочем месте", reply_markup=create_main_keyboard())
+            else:
+                await message.answer("Вы не на рабочем месте", reply_markup=create_main_keyboard())
+
     await state.clear()
 
 
@@ -215,9 +265,15 @@ async def start_command(message: types.Message):
 async def main():
     stores_db_connector.connect(*DB_CONNECTION_PARAMS)
     employees_db_connector.connect(*DB_CONNECTION_PARAMS)
+    employees_attendance_db_connector.connect(*DB_CONNECTION_PARAMS)
     # Запуск планировщика
     scheduler.start()
-    scheduler_handler.schedule_messages(scheduler, employees_db_connector, stores_db_connector, bot)
+    scheduler_handler.workday_messages(scheduler, employees_db_connector, stores_db_connector, employees_attendance_db_connector, bot)
+    scheduler_handler.add_update_dates_job(scheduler, employees_db_connector)
+
+    for job in scheduler.get_jobs():
+        print(job)
+
     await dp.start_polling(bot)
 
 
