@@ -6,7 +6,8 @@ from utils import send_message, send_false_message, update_schedule
 def workday_messages(scheduler, employees_db, stores_db, attendance_db, bot):
     employees = employees_db.get_all_users()
     for employee in employees:
-        message_for_one_user(employee)
+        if employee["store_id"]:
+            message_for_one_user(employee, employees_db, stores_db, attendance_db, scheduler,  bot)
 
 
 def message_for_one_user(employee, employees_db, stores_db, attendance_db, scheduler,  bot):
@@ -80,14 +81,13 @@ def add_work_job_false(scheduler, hour, minute, employee_id, bot, text, attendan
 def remove_work_job(scheduler, work_time, user_id):
     if scheduler.get_job(f"job_{work_time}_{user_id}"):
         scheduler.remove_job(f"job_{work_time}_{user_id}")
-    scheduler.remove_job(f"job_{work_time}2_{user_id}")
+    if scheduler.get_job(f"job_{work_time}2_{user_id}"):
+        scheduler.remove_job(f"job_{work_time}2_{user_id}")
 
 
 def remove_all_work_job_for_user(scheduler, user_id):
     for work_time in ["start", "end"]:
-        if scheduler.get_job(f"job_{work_time}_{user_id}"):
-            scheduler.remove_job(f"job_{work_time}_{user_id}")
-        scheduler.remove_job(f"job_{work_time}2_{user_id}")
+        remove_work_job(scheduler, work_time, user_id)
 
 
 def update_jobs_for_user(username, scheduler, employees_db, stores_db, attendance_db, bot):
@@ -97,7 +97,7 @@ def update_jobs_for_user(username, scheduler, employees_db, stores_db, attendanc
 
 
 # ежедневное обновление десяти предстоящих дат в базе данных
-def everyday_update_dates(scheduler, employees_db, stores_db, attendance_db, bot):
+def everyday_workday_update(scheduler, employees_db, stores_db, attendance_db, bot):
     all_users = employees_db.get_all_users()
     for user in all_users:
         username, _, _ = user.values()
@@ -109,9 +109,9 @@ def everyday_update_dates(scheduler, employees_db, stores_db, attendance_db, bot
 
 
 # добавление задачи обновления дат в scheduler
-def add_update_dates_job(scheduler, employees_db, stores_db, attendance_db, bot):
+def everyday_update(scheduler, employees_db, stores_db, attendance_db, bot):
     scheduler.add_job(
-        everyday_update_dates,
+        everyday_workday_update,
         CronTrigger(hour=21, minute=00, timezone=timezone.utc),
         args=[scheduler, employees_db, stores_db, attendance_db, bot],
         id="update_dates",

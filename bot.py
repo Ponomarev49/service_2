@@ -55,7 +55,7 @@ async def handle_change_work(message: types.Message, state: FSMContext):
     await state.set_state(LocationStates.set_workplace)
 
 
-# Проверить на работе
+# Отметиться на работе
 @dp.message(F.text == "✅ Отметиться на работе")
 async def handle_check_work(message: types.Message, state: FSMContext):
     username = message.from_user.username
@@ -87,13 +87,13 @@ async def handle_change_phone(message: types.Message, state: FSMContext):
     await state.set_state(LocationStates.change_phone)
 
 
-# Генерация клавиатуры
+# Изменить рабочие расписание
 @dp.message(F.text == "📅 Изменить расписание")
 async def handle_set_schedule(message: types.Message, state: FSMContext):
     username = message.from_user.username
     await create_dates_buttons(username, employees_db_connector, bot, state)
 
-
+# Сохранение расписания
 @dp.callback_query(lambda c: c.data == "save_schedule")
 async def handle_save_schedule(callback_query: types.CallbackQuery, state: FSMContext):
     # Получаем ID сообщения, которое нужно удалить
@@ -267,7 +267,7 @@ async def main():
     # Запуск планировщика
     scheduler.start()
     scheduler_handler.workday_messages(scheduler, employees_db_connector, stores_db_connector, employees_attendance_db_connector, bot)
-    scheduler_handler.add_update_dates_job(scheduler, employees_db_connector, stores_db_connector, employees_attendance_db_connector, bot)
+    scheduler_handler.everyday_update(scheduler, employees_db_connector, stores_db_connector, employees_attendance_db_connector, bot)
 
     for job in scheduler.get_jobs():
         print(job)
