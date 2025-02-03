@@ -6,6 +6,10 @@ from utils import send_message, send_false_message, update_schedule
 def workday_messages(scheduler, employees_db, stores_db, attendance_db, bot):
     employees = employees_db.get_all_users()
     for employee in employees:
+        message_for_one_user(employee)
+
+
+def message_for_one_user(employee, employees_db, stores_db, attendance_db, scheduler,  bot):
         status =next(iter(employees_db.get_employee_next_dates(employee["username"]).items()))[1]
 
         if status=="Работаю":
@@ -28,17 +32,17 @@ def workday_messages(scheduler, employees_db, stores_db, attendance_db, bot):
             work_start_utc = (now_utc.replace(hour=work_start_time.hour, 
                                             minute=work_start_time.minute, 
                                             second=work_start_time.second, 
-                                            microsecond=0) - offset_delta) + timedelta(minutes=2)
+                                            microsecond=0) - offset_delta) + timedelta(minutes=10)
             
             work_start2_utc = (now_utc.replace(hour=work_start_time.hour, 
                                             minute=work_start_time.minute, 
                                             second=work_start_time.second, 
-                                            microsecond=0) - offset_delta) + timedelta(minutes=4)
+                                            microsecond=0) - offset_delta) + timedelta(minutes=20)
             
             work_end_utc = (now_utc.replace(hour=work_end_time.hour, 
                                             minute=work_end_time.minute, 
                                             second=work_end_time.second, 
-                                            microsecond=0) - offset_delta) - timedelta(minutes=2)
+                                            microsecond=0) - offset_delta) - timedelta(minutes=10)
             
             work_end2_utc = now_utc.replace(hour=work_end_time.hour, 
                                             minute=work_end_time.minute, 
@@ -73,8 +77,27 @@ def add_work_job_false(scheduler, hour, minute, employee_id, bot, text, attendan
     )
 
 
+def remove_work_job(scheduler, work_time, user_id):
+    if scheduler.get_job(f"job_{work_time}_{user_id}"):
+        scheduler.remove_job(f"job_{work_time}_{user_id}")
+    scheduler.remove_job(f"job_{work_time}2_{user_id}")
+
+
+def remove_all_work_job_for_user(scheduler, user_id):
+    for work_time in ["start", "end"]:
+        if scheduler.get_job(f"job_{work_time}_{user_id}"):
+            scheduler.remove_job(f"job_{work_time}_{user_id}")
+        scheduler.remove_job(f"job_{work_time}2_{user_id}")
+
+
+def update_jobs_for_user(username, scheduler, employees_db, stores_db, attendance_db, bot):
+    employee = employees_db.check_user_by_username(username)
+    remove_all_work_job_for_user(scheduler, employee["user_id"])
+    message_for_one_user(employee, employees_db, stores_db, attendance_db, scheduler,  bot)
+
+
 # ежедневное обновление десяти предстоящих дат в базе данных
-def everyday_update_dates(employees_db):
+def everyday_update_dates(scheduler, employees_db, stores_db, attendance_db, bot):
     all_users = employees_db.get_all_users()
     for user in all_users:
         username, _, _ = user.values()
@@ -82,13 +105,15 @@ def everyday_update_dates(employees_db):
         updates_user_dates = update_schedule(user_dates)
         employees_db.update_employee_next_dates(username, updates_user_dates)
 
+    workday_messages(scheduler, employees_db, stores_db, attendance_db, bot)
+
 
 # добавление задачи обновления дат в scheduler
-def add_update_dates_job(scheduler, employees_db):
+def add_update_dates_job(scheduler, employees_db, stores_db, attendance_db, bot):
     scheduler.add_job(
         everyday_update_dates,
         CronTrigger(hour=21, minute=00, timezone=timezone.utc),
-        args=[employees_db],
+        args=[scheduler, employees_db, stores_db, attendance_db, bot],
         id="update_dates",
         replace_existing=True
     )

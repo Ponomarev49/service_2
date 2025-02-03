@@ -192,13 +192,9 @@ async def location_handler(message: types.Message, state: FSMContext):
         # Проверяем, уложился ли сотрудник в 20 минут
         if work_start_time <= user_now_time <= work_start_plus_20 or work_end_minus_20 <= user_now_time <= work_end_time:
             if work_start_time <= user_now_time <= work_start_plus_20:
-                if scheduler.get_job(f"job_start_{user_id}"):
-                    scheduler.remove_job(f"job_start_{user_id}")
-                scheduler.remove_job(f"job_start2_{user_id}")
+                scheduler_handler.remove_work_job(scheduler, "start", user_id)
             if work_end_minus_20 <= user_now_time <= work_end_time:
-                if scheduler.get_job(f"job_end_{user_id}"):
-                    scheduler.remove_job(f"job_end_{user_id}")
-                scheduler.remove_job(f"job_end2_{user_id}")
+                scheduler_handler.remove_work_job(scheduler, "end", user_id)
 
             employees_attendance_db_connector.add_attendance(user_id, datetime.now().strftime("%Y.%m.%d"), str(user_now_time), was_present)
             await message.answer("Ваша отметка сохранена ✅", reply_markup=create_main_keyboard())
@@ -216,6 +212,7 @@ async def location_handler(message: types.Message, state: FSMContext):
 async def process_store_selection(callback_query: types.CallbackQuery):
     store_id = int(callback_query.data.split('_')[-1])
     employees_db_connector.update_user_store_id(username=callback_query.from_user.username, store_id=store_id)
+    scheduler_handler.update_jobs_for_user(callback_query.from_user.username, scheduler, employees_db_connector, stores_db_connector, employees_attendance_db_connector, bot)
     await callback_query.message.answer(f"Вы успешно авторизованы. Ваше рабочее место {store_id}",
                                         reply_markup=create_main_keyboard())
 
@@ -233,6 +230,7 @@ async def handle_date_click(callback_query: types.CallbackQuery, state: FSMConte
         nearest_days[selected_date] = "Работаю"
 
     employees_db_connector.update_employee_next_dates(username, nearest_days)
+    scheduler_handler.update_jobs_for_user(callback_query.from_user.username, scheduler, employees_db_connector, stores_db_connector, employees_attendance_db_connector, bot)
 
     user_data = await state.get_data()
     sent_message_id = user_data.get('sent_message_id')
@@ -269,7 +267,7 @@ async def main():
     # Запуск планировщика
     scheduler.start()
     scheduler_handler.workday_messages(scheduler, employees_db_connector, stores_db_connector, employees_attendance_db_connector, bot)
-    scheduler_handler.add_update_dates_job(scheduler, employees_db_connector)
+    scheduler_handler.add_update_dates_job(scheduler, employees_db_connector, stores_db_connector, employees_attendance_db_connector, bot)
 
     for job in scheduler.get_jobs():
         print(job)
