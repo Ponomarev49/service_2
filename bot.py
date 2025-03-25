@@ -190,20 +190,20 @@ async def location_handler(message: types.Message, state: FSMContext):
             was_present = True
 
         # Проверяем, уложился ли сотрудник в 20 минут
-        if work_start_time <= user_now_time <= work_start_plus_20 or work_end_minus_20 <= user_now_time <= work_end_time:
-            if work_start_time <= user_now_time <= work_start_plus_20:
-                scheduler_handler.remove_work_job(scheduler, "start", user_id)
-            if work_end_minus_20 <= user_now_time <= work_end_time:
-                scheduler_handler.remove_work_job(scheduler, "end", user_id)
+        # if work_start_time <= user_now_time <= work_start_plus_20 or work_end_minus_20 <= user_now_time <= work_end_time:
+        if work_start_time <= user_now_time <= work_start_plus_20:
+            scheduler_handler.remove_work_job(scheduler, "start", user_id)
+        if work_end_minus_20 <= user_now_time <= work_end_time:
+            scheduler_handler.remove_work_job(scheduler, "end", user_id)
 
-            employees_attendance_db_connector.add_attendance(user_id, datetime.now().strftime("%Y.%m.%d"), str(user_now_time), was_present)
-            await message.answer("Ваша отметка сохранена ✅", reply_markup=create_main_keyboard())
+        employees_attendance_db_connector.add_attendance(user_id, datetime.now().strftime("%Y.%m.%d"), str(user_now_time), was_present)
+        await message.answer("Ваша отметка сохранена ✅", reply_markup=create_main_keyboard())
         
-        else:
-            if was_present:
-                await message.answer("Вы на рабочем месте", reply_markup=create_main_keyboard())
-            else:
-                await message.answer("Вы не на рабочем месте", reply_markup=create_main_keyboard())
+        # else:
+        #     if was_present:
+        #         await message.answer("Вы на рабочем месте", reply_markup=create_main_keyboard())
+        #     else:
+        #         await message.answer("Вы не на рабочем месте", reply_markup=create_main_keyboard())
 
     await state.clear()
 
