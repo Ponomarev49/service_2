@@ -1,5 +1,5 @@
 from apscheduler.triggers.cron import CronTrigger
-from datetime import time, datetime, timedelta, timezone
+from datetime import time, datetime, timedelta, timezone, date
 from utils import send_message, send_false_message, update_schedule
 
 # Планирование задач для каждого пользователя
