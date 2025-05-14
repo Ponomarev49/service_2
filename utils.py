@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 def get_next_10_days_formatted():
     today = datetime.today()
-    next_10_days = [(today + timedelta(days=i)).strftime('%d.%m.%Y') for i in range(1, 11)]
+    next_10_days = [(today + timedelta(days=i)).strftime('%d.%m.%Y') for i in range(0, 10)]
     return next_10_days
 
 
