@@ -16,7 +16,7 @@ class StoresDBConnector(DBAPIConnector):
     workTimeEnd: str = "workTimeEnd"
     timezone: str = "timezone"
 
-    def get_nearest_stores_for_user(self, user_lat: float, user_lon: float) -> list:
+    def get_nearest_stores_for_user(self, user_lat: float, user_lon: float):
         # Получаем все магазины
         response = self.supabase.table(self.table_name).select("*").execute()
         stores = response.data
@@ -32,7 +32,7 @@ class StoresDBConnector(DBAPIConnector):
         store_distances.sort()  # Сортируем по расстоянию
         return store_distances[:3]  # Возвращаем топ 3 ближайших магазина
 
-    def get_store_coordinates_by_id(self, id: int) -> dict:
+    def get_store_coordinates_by_id(self, id: int):
         # Получаем координаты магазина по его ID
         response = self.supabase.table(self.table_name).select("lat, lon").eq(self.id, id).execute()
         result = response.data
@@ -40,7 +40,7 @@ class StoresDBConnector(DBAPIConnector):
             return result[0]
         return {}
 
-    def get_time_for_store(self, id: int) -> dict:
+    def get_time_for_store(self, id: int):
         # Получаем часовой пояс магазина
         response = self.supabase.table(self.table_name).select("city", "workTimeStart", "workTimeEnd", "timezone").eq(self.id,
                                                                                                      id).execute()

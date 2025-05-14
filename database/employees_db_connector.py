@@ -15,7 +15,7 @@ class EmployeesDBConnector(DBAPIConnector):
             {self.username: username, self.user_id: user_id}).execute()
         print(f"Добавлен пользователь {username} с ID {user_id}.")
 
-    def check_user_by_username(self, username: str) -> dict:
+    def check_user_by_username(self, username: str):
         # Подключение к базе данных и выполнение запроса
         response = self.supabase.table(self.table_name).select("*").eq(self.username, username).execute()
         response_data = response.data
@@ -34,7 +34,7 @@ class EmployeesDBConnector(DBAPIConnector):
         self.supabase.table(self.table_name).update({self.store_id: store_id}).eq(self.username, username).execute()
         print(f"Пользователь {username} установил магазин с ID {store_id}.")
 
-    def get_employee_workplace(self, username: str) -> dict:
+    def get_employee_workplace(self, username: str):
         # Получаем store_id сотрудника
         response = self.supabase.table(self.table_name).select("store_id").eq(self.username, username).execute()
         response_data = response.data
@@ -44,7 +44,7 @@ class EmployeesDBConnector(DBAPIConnector):
             return store_id
         return {}
 
-    def get_all_users(self) -> list:
+    def get_all_users(self):
         # получаем username и store_id всех сотрудников
         response = self.supabase.table(self.table_name).select("username", "user_id", "store_id").execute()
         response_data = response.data
@@ -52,7 +52,7 @@ class EmployeesDBConnector(DBAPIConnector):
             return response_data
         return []
 
-    def get_employee_next_dates(self, username: str) -> list:
+    def get_employee_next_dates(self, username: str):
         response = self.supabase.table(self.table_name).select("nearest_dates").eq(self.username, username).execute()
         response_data = response.data
         return response_data[0]["nearest_dates"]
