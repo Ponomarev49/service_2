@@ -1,13 +1,10 @@
 import math
-
+from constants import RADIUS_OF_EARTH
 
 class Coordinates:
     def __init__(self, coordinates_list):
         self.latitude = float(coordinates_list[0])
         self.longitude = float(coordinates_list[1])
-
-
-RADIUS_OF_EARTH = 6371
 
 
 def calculate_distance(coords1: Coordinates, coords2: Coordinates):

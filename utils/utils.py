@@ -1,5 +1,15 @@
 from datetime import datetime, timedelta
 
+
+async def get_user_id(event: types.Message | types.CallbackQuery):
+    if isinstance(event, types.Message):
+        return event.from_user.id
+    elif isinstance(event, types.CallbackQuery):
+        return event.from_user.id
+    else:
+        raise ValueError("Переданный объект не является Message или CallbackQuery")
+
+
 def get_next_10_days_formatted():
     today = datetime.today()
     next_10_days = [(today + timedelta(days=i)).strftime('%d.%m.%Y') for i in range(0, 10)]

@@ -1,6 +1,7 @@
 from apscheduler.triggers.cron import CronTrigger
 from datetime import time, datetime, timedelta, timezone, date
 from utils import send_message, send_false_message, update_schedule
+from constants import DELTA
 
 # Планирование задач для каждого пользователя
 def workday_messages(scheduler, employees_db, stores_db, attendance_db, bot):
@@ -34,17 +35,17 @@ def message_for_one_user(employee, employees_db, stores_db, attendance_db, sched
             work_start_utc = (now_utc.replace(hour=work_start_time.hour, 
                                             minute=work_start_time.minute, 
                                             second=work_start_time.second, 
-                                            microsecond=0) - offset_delta) + timedelta(minutes=10)
+                                            microsecond=0) - offset_delta) + timedelta(minutes=DELTA)
             
             work_start2_utc = (now_utc.replace(hour=work_start_time.hour, 
                                             minute=work_start_time.minute, 
                                             second=work_start_time.second, 
-                                            microsecond=0) - offset_delta) + timedelta(minutes=20)
+                                            microsecond=0) - offset_delta) + timedelta(minutes=2*DELTA)
             
             work_end_utc = (now_utc.replace(hour=work_end_time.hour, 
                                             minute=work_end_time.minute, 
                                             second=work_end_time.second, 
-                                            microsecond=0) - offset_delta) - timedelta(minutes=10)
+                                            microsecond=0) - offset_delta) - timedelta(minutes=DELTA)
             
             work_end2_utc = now_utc.replace(hour=work_end_time.hour, 
                                             minute=work_end_time.minute, 
