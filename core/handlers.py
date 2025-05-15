@@ -6,13 +6,15 @@ from utils.keyboard import *
 from utils.location_handler import calculate_distance, Coordinates
 from utils.constants import COORDINATES_ERROR
 from utils.utils import get_next_10_days_formatted, get_user_id
-from database import employees_db_connector, stores_db_connector, employee_attendance_db_connector
+from database.stores_db_connector import StoresDBConnector
+from database.employees_db_connector import EmployeesDBConnector
+from database.employee_attendance_db_connector import EmployeeAttendanceDBConnector
 from datetime import datetime, timedelta, timezone
 from utils import scheduler_handler
 from aiogram.fsm.context import FSMContext
 from aiogram import Dispatcher, Bot
 
-def register_handlers(dp: Dispatcher, bot: Bot, scheduler: AsyncIOScheduler):
+def register_handlers(dp: Dispatcher, bot: Bot, scheduler: AsyncIOScheduler, stores_db_connector:  StoresDBConnector, employees_db_connector: EmployeesDBConnector, employee_attendance_db_connector: EmployeeAttendanceDBConnector):
     # Сменить место работы
     @dp.message(F.text == "🏢 Сменить место работы")
     async def handle_change_work(message: types.Message, state: FSMContext):

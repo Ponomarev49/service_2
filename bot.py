@@ -32,7 +32,7 @@ async def main():
     scheduler = AsyncIOScheduler()
     scheduler.start()
 
-    register_handlers(dp, bot, scheduler)
+    register_handlers(dp, bot, scheduler, stores_db_connector, employees_db_connector, employee_attendance_db_connector)
 
     scheduler_handler.workday_messages(scheduler, employees_db_connector, stores_db_connector, employee_attendance_db_connector, bot)
     scheduler_handler.everyday_update(scheduler, employees_db_connector, stores_db_connector, employee_attendance_db_connector, bot)
