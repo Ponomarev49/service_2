@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from aiogram import types
 
 
 async def get_user_id(event: types.Message | types.CallbackQuery):

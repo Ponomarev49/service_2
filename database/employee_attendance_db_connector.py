@@ -14,5 +14,3 @@ class EmployeeAttendanceDBConnector(DBAPIConnector):
         self.supabase.table(self.table_name).insert(
             {self.user_id: user_id, self.date: date, self.time: time, self.was_present: was_present}).execute()
         print(f"Добавлена метка {user_id} {time} {was_present}.")
-
-employees_attendance_db_connector = EmployeeAttendanceDBConnector()

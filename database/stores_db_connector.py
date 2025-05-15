@@ -1,4 +1,4 @@
-from location_handler import calculate_distance, Coordinates
+from utils.location_handler import calculate_distance, Coordinates
 from database.db_api_connector import DBAPIConnector
 
 class StoresDBConnector(DBAPIConnector):
@@ -48,5 +48,3 @@ class StoresDBConnector(DBAPIConnector):
         if result:
             return result[0]
         return {}
-    
-stores_db_connector = StoresDBConnector()

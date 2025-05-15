@@ -1,7 +1,7 @@
 from apscheduler.triggers.cron import CronTrigger
 from datetime import time, datetime, timedelta, timezone, date
-from utils import send_message, send_false_message, update_schedule
-from constants import DELTA
+from utils.utils import send_message, send_false_message, update_schedule
+from .constants import DELTA
 
 # Планирование задач для каждого пользователя
 def workday_messages(scheduler, employees_db, stores_db, attendance_db, bot):

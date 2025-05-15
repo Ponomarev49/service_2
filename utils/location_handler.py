@@ -1,5 +1,5 @@
 import math
-from constants import RADIUS_OF_EARTH
+from .constants import RADIUS_OF_EARTH
 
 class Coordinates:
     def __init__(self, coordinates_list):

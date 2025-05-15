@@ -59,5 +59,3 @@ class EmployeesDBConnector(DBAPIConnector):
 
     def update_employee_next_dates(self, username: str, dates: dict):
         self.supabase.table(self.table_name).update({self.nearest_dates: dates}).eq(self.username, username).execute()
-
-employees_db_connector = EmployeesDBConnector()
