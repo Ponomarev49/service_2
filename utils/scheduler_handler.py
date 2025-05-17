@@ -13,10 +13,9 @@ def workday_messages(scheduler, employees_db, stores_db, attendance_db, bot):
 
 def message_for_one_user(employee, employees_db, stores_db, attendance_db, scheduler,  bot):
     next_dates = employees_db.get_employee_next_dates(employee["username"])
-    today_str = date.today().isoformat()
+    today_str = date.today().strftime('%d.%m.%Y')
 
     if today_str in next_dates and next_dates[today_str] == "Работаю":
-            # _, employee_id, _ = employee.values()
             employee_city, employee_work_time_start, employee_work_time_end, employee_timezone = stores_db.get_time_for_store(
                 employee["store_id"]).values()
 
